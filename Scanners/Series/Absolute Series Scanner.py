@@ -152,8 +152,9 @@ WS_MULTI_EP_SIMPLE  = com(r"^(?P<ep>\d{1,3})-(?P<ep2>\d{1,3})$")
 WS_MULTI_EP_COMPLEX = com(r"^(ep?[ -]?)?(?P<ep>\d{1,3})(-|ep?|-ep?)(?P<ep2>\d{1,3})")
 WS_SPECIALS         = com(r"^((t|o)\d{1,3}$|(sp|special|op|ncop|opening|ed|nced|ending|trailer|promo|pv|others?)(\d{1,3})?$)")
 # Switch to turn on youtube date scanning
-SW_YOUTUBE_DATE     = False
+SW_YOUTUBE_DATE     = True
 DERIVE_EPISODE_NUM_FROM_FILE_MODIFIED_DATE = True
+TWENTY_SIXTEEN = int(time.mktime(datetime.datetime(2016, 1, 1).timetuple()))
 
 ### Setup core variables ################################################################################
 def setup():
@@ -975,13 +976,23 @@ def Scan(path, files, media, dirs, language=None, root=None, **kwargs): #get cal
         else:
           folder_season = time.gmtime(os.path.getmtime(os.path.join(root, path, filename)))[0]  # no info from file or flag not set, revert to original way of reading the file date
           Log.info('Youtube folder season gmtime,  season: {}, file: {}'.format(folder_season, filename))
+
+        ep = files_per_date.index(filename)+1 if filename in files_per_date else 0
+
         if DERIVE_EPISODE_NUM_FROM_FILE_MODIFIED_DATE:
-          file_timestamp = int(os.path.getmtime(os.path.join(root, path, filename)))
-          file_year = datetime.datetime.fromtimestamp(file_timestamp).year
-          start_year_timestamp = int(time.mktime(datetime.datetime(file_year, 1, 1).timetuple()))
-          ep = int((file_timestamp - start_year_timestamp) / (60 * 60))
-        else:
-          ep = files_per_date.index(filename)+1 if filename in files_per_date else 0
+            match = re.match(r"(20\d{2})(\d{2})(\d{2})", filename)
+            if len(match.groups()) == 3:
+                year = int(match.groups()[0])
+                month = int(match.groups()[1])
+                day = int(match.groups()[2])
+
+                file_timestamp = int(os.path.getmtime(os.path.join(root, path, filename)))
+                file_date = datetime.datetime.fromtimestamp(file_timestamp)
+
+                ep = int((int(time.mktime(
+                    datetime.datetime(year, month, day, file_date.hour, file_date.minute, file_date.second,
+                                      file_date.microsecond).timetuple())) - TWENTY_SIXTEEN) / (60 * 60))
+
         standard_holding.append([os.path.join(root, path, filename), root, path, folder_show if id in folder_show else folder_show+'['+id+']', int(folder_season if folder_season is not None else 1), ep, filename, folder_season, ep, 'YouTube', tvdb_mapping, unknown_series_length, offset_season, offset_episode, mappingList])
         continue
 
